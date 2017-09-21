@@ -1,0 +1,87 @@
+{
+  "variables": {
+    "aws_access_key": "",
+    "aws_secret_key": "",
+    "region": "us-east-1",
+    "source_ami": "ami-cd0f5cb6",
+    "instance_type": "t2.micro",
+    "ssh_username": "ubuntu",
+    "vpc_id": "",
+    "ami_name": "wp_template-{{timestamp}}"
+},
+  "builders": [
+    {
+    "type": "amazon-ebs",
+    "access_key": "{{user `aws_access_key`}}",
+    "secret_key": "{{user `aws_secret_key`}}",
+    "region": "{{user `region`}}",
+    "source_ami": "{{user `source_ami`}}",
+    "instance_type": "{{user `instance_type`}}",
+    "ssh_username": "{{user `ssh_username`}}",
+    "ami_name": "{{user `ami_name`}} {{timestamp}}",
+    "vpc_id": "{{user `vpc_id`}}",
+    "ssh_pty" : "true"
+    }
+  ],
+  "provisioners":[
+      {
+        "type": "shell",
+          "inline": ["sudo apt-get -y update;sudo apt-get install -y cron curl sudo wget git && wget https://apt.puppetlabs.com/puppetlabs-release-pc1-xenial.deb -O /tmp/puppetlabs.deb && sudo dpkg -i /tmp/puppetlabs.deb && sudo apt-get update && sudo apt-get install  puppet-agent"]
+      },
+      {
+        "type": "puppet-masterless",
+        "manifest_file": "puppet/environments/packer/manifests/jenkins-master.pp",
+        "manifest_dir": "puppet/environments",
+        "module_paths": ["puppet/modules"],
+        "execute_command": "{{.FacterVars}} sudo /opt/puppetlabs/bin/puppet apply --detailed-exitcodes --modulepath='{{.ModulePath}}' {{.ManifestFile}}"
+      },
+      {
+        "type": "file",
+        "destination": "/tmp/",
+        "source": "./jenkins-master/build/plugins"
+      },
+      {
+        "type": "file",
+        "destination": "/tmp/",
+        "source": "./jenkins-master/build/jobs_aws"
+      },
+      {
+        "type": "file",
+        "destination": "/tmp/",
+        "source": "./jenkins-master/build/docker.service"
+      },
+      {
+        "type": "shell",
+        "inline": ["sudo cp -r /tmp/plugins  /var/lib/jenkins/"]
+      },
+      {
+        "type": "shell",
+        "inline": ["sudo mkdir -p /var/lib/jenkins/jobs"]
+      },
+      {
+        "type": "shell",
+        "inline": ["sudo cp -r /tmp/jobs_aws/*  /var/lib/jenkins/jobs/"]
+      },
+      {
+        "type": "shell",
+        "inline": ["sudo chown -R jenkins:jenkins  /var/lib/jenkins/"]
+      },
+      {
+        "type": "shell",
+        "inline": ["sudo usermod -aG docker jenkins"]
+      },
+      {
+        "type": "shell",
+        "inline": ["sudo systemctl enable docker"]
+      },
+      {
+        "type": "shell",
+        "inline": ["sudo cp /tmp/docker.service  /lib/systemd/system/docker.service"]
+      },
+      {
+        "type": "shell",
+        "inline": ["sudo  systemctl daemon-reload && sudo systemctl restart docker"]
+      }
+
+  ]
+}

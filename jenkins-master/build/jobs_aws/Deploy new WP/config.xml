@@ -1,0 +1,160 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<flow-definition plugin="workflow-job@2.12.2">
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>aws_access_key</name>
+          <description>AWS access key</description>
+          <defaultValue>none</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>aws_secret_key</name>
+          <description>AWS secret key</description>
+          <defaultValue>none</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>aws_region</name>
+          <description>AWS region</description>
+          <defaultValue>us-east-1</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>aws_instance_type</name>
+          <description>AWS EC2 instance type </description>
+          <defaultValue>t2.micro</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>aws_rds_master_username</name>
+          <description>RDS DB username(login)</description>
+          <defaultValue>wp</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>aws_rds_master_password</name>
+          <description>RDS DB password</description>
+          <defaultValue>password</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>aws_rds_host</name>
+          <description>RDS DNS A record for connection</description>
+          <defaultValue>terraform-0071150e850fedd823c3075068.clddmlumhp0x.us-east-1.rds.amazonaws.com</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>aws_rds_dbname</name>
+          <description>Database name</description>
+          <defaultValue>wordpress</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>key_name</name>
+          <description>SSH key name</description>
+          <defaultValue>none</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>aws_security_groups</name>
+          <description>List of security group  ex.[&quot;sg-8a1095f9&quot;,&quot;sg-d21f9aa1&quot;]</description>
+          <defaultValue>[&quot;none&quot;,&quot;none&quot;]</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>aws_vpc_zone_identifier</name>
+          <description>List of vpc zone ex.[&quot;subnet-035c6c2f&quot;,&quot;subnet-c13dcc8a&quot;]</description>
+          <defaultValue>[&quot;none&quot;,&quot;none&quot;]</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>aws_s3_bucket</name>
+          <description>By default S3 bucket is rds-backup-bucket</description>
+          <defaultValue>rds-backup-bucket</defaultValue>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+    <org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
+      <triggers>
+        <hudson.triggers.SCMTrigger>
+          <spec>H/10 * * * *</spec>
+          <ignorePostCommitHooks>false</ignorePostCommitHooks>
+        </hudson.triggers.SCMTrigger>
+      </triggers>
+    </org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
+  </properties>
+  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@2.40">
+    <script>node {
+    try {
+        
+      println &quot;${env.JOB_NAME} - #${env.BUILD_NUMBER} Started&quot;
+      time=&quot;${currentBuild.startTimeInMillis}&quot;
+      echo &quot;TimeStamp: ${time}&quot;
+      deleteDir() //Make sure workspace is clean
+      sh &quot;mkdir -p /var/lib/jenkins/jobs/infra/wordpress/state/&quot;
+        dir(&quot;/var/lib/jenkins/jobs/infra&quot;) {
+        stage(&apos;Change puppet for deploy&apos;) {
+            def puppet = &quot;&quot;&quot;class wordpress::conf { 
+                \$root_password = &apos;${aws_rds_master_password}&apos;
+                \$db_name = &apos;${aws_rds_dbname}&apos;
+                \$db_user = &apos;${aws_rds_master_username}&apos;
+                \$db_user_password = &apos;${aws_rds_master_password}&apos;
+                \$db_host = &apos;${aws_rds_host}&apos;
+            }
+            &quot;&quot;&quot;
+            writeFile file: &apos;/var/lib/jenkins/jobs/infra/puppet/modules/wordpress/manifests/conf.pp&apos;, text: puppet
+          }
+        }
+        dir(&quot;/var/lib/jenkins/jobs/infra&quot;) {
+        stage (&apos;Build docker container&apos;) {
+         sh &quot;cd /var/lib/jenkins/jobs/infra &amp;&amp; packer validate  docker.json &quot; 
+         sh &quot;cd /var/lib/jenkins/jobs/infra &amp;&amp; packer build  docker.json&quot;
+            
+        }
+        }
+        
+        stage (&apos;Backup db and upload to S3 bucket&apos;) {
+         sh &quot;mysqldump -u${aws_rds_master_username}  -p${aws_rds_master_password} -h ${aws_rds_host} ${aws_rds_dbname} &gt; /var/lib/jenkins/jobs/infra/db/wp_bck.sql&quot; 
+         sh &quot;AWS_ACCESS_KEY_ID=${aws_access_key} AWS_SECRET_ACCESS_KEY=${aws_secret_key}  aws s3 cp  /var/lib/jenkins/jobs/infra/db/wp_bck.sql  s3://${aws_s3_bucket}/wp_bck.sql&quot;
+            
+        }
+        dir(&quot;/var/lib/jenkins/jobs/infra&quot;) {
+        stage (&apos;Creating a Custom Amazon Machine Image (AMI)&apos;) {
+        sh &quot;cd /var/lib/jenkins/jobs/infra &amp;&amp; packer validate   -var \&apos;aws_access_key=${aws_access_key}\&apos; -var \&apos;aws_secret_key=${aws_secret_key}\&apos; -var \&apos;region=${aws_region}\&apos; -var \&apos;instance_type=${aws_instance_type}\&apos; wordpress.json&quot; 
+        sh &quot;cd /var/lib/jenkins/jobs/infra &amp;&amp; packer build  -var \&apos;aws_access_key=${aws_access_key}\&apos; -var \&apos;aws_secret_key=${aws_secret_key}\&apos; -var \&apos;region=${aws_region}\&apos; -var \&apos;instance_type=${aws_instance_type}\&apos; wordpress.json  &gt; /var/lib/jenkins/jobs/infra/packer.log&quot; 
+            
+        }
+        }
+        dir(&quot;/var/lib/jenkins/jobs/infra&quot;) {
+        stage (&apos;Deploy new WP site&apos;) {
+          
+            ami_id = sh(returnStdout: true, script: &apos;tail -n 2 /var/lib/jenkins/jobs/infra/packer.log |awk -F\&quot;: \&quot; \&apos;{print $NF}\&apos;|tr -d \&quot;\n\&quot;&apos;).trim()
+               def tstate = &quot;&quot;&quot;region = \&quot;${aws_region}\&quot;
+                 access_key = \&quot;${aws_access_key}\&quot;
+                secret_key = \&quot;${aws_secret_key}\&quot;
+                key_name = \&quot;${key_name}\&quot;
+                security_groups = ${aws_security_groups}
+                vpc_zone_identifier=${aws_vpc_zone_identifier}
+                image_id=\&quot;${ami_id}\&quot;
+                instance_type=\&quot;${aws_instance_type}\&quot;
+                time = \&quot;${time}\&quot;
+            &quot;&quot;&quot;
+            writeFile file: &apos;/var/lib/jenkins/jobs/infra/wordpress/state/terraform.tfvars&apos;, text: tstate
+            sh &quot;cd /var/lib/jenkins/jobs/infra/wordpress &amp;&amp; terraform init -var-file=/var/lib/jenkins/jobs/infra/wordpress/state/terraform.tfvars /var/lib/jenkins/jobs/infra/wordpress&quot;  
+            sh &quot;cd /var/lib/jenkins/jobs/infra/wordpress &amp;&amp; terraform plan -var-file=/var/lib/jenkins/jobs/infra/wordpress/state/terraform.tfvars -state=/var/lib/jenkins/jobs/infra/wordpress/state/terraform.tfstate /var/lib/jenkins/jobs/infra/wordpress&quot;
+            sh &quot;cd /var/lib/jenkins/jobs/infra/wordpress &amp;&amp; terraform apply -var-file=/var/lib/jenkins/jobs/infra/wordpress/state/terraform.tfvars -state=/var/lib/jenkins/jobs/infra/wordpress/state/terraform.tfstate /var/lib/jenkins/jobs/infra/wordpress&quot;
+            
+        }
+        }
+        stage(&apos;Fix hostname in DB&apos;){
+            elb_dns = sh(returnStdout: true, script: &apos;terraform output -state=/var/lib/jenkins/jobs/infra/wordpress/state/terraform.tfstate elb_dns&apos;).trim()
+            sh &quot;mysql -u${aws_rds_master_username}  -p${aws_rds_master_password} -h ${aws_rds_host} ${aws_rds_dbname} -e \&quot;UPDATE wp_options SET option_value=\&apos;http://${elb_dns}\&apos; WHERE option_id=\&apos;2\&apos;;\&quot;&quot; 
+            sh &quot;mysql -u${aws_rds_master_username}  -p${aws_rds_master_password} -h ${aws_rds_host} ${aws_rds_dbname} -e \&quot;UPDATE wp_options SET option_value=\&apos;http://${elb_dns}\&apos; WHERE option_id=\&apos;1\&apos;;\&quot;&quot;
+        }
+
+
+    } catch (e) {
+       println &quot;${env.JOB_NAME} - #${env.BUILD_NUMBER} Failure&quot;
+        throw e
+    }
+}
+</script>
+    <sandbox>true</sandbox>
+  </definition>
+  <triggers/>
+  <disabled>false</disabled>
+</flow-definition>

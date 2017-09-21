@@ -1,0 +1,54 @@
+upstream phpfpm {
+    server unix:/var/run/php5-fpm.sock;
+}
+server {
+
+    listen 8080;
+    server_name <%= @fqdn %>;
+    root <%= @root %>;
+
+    index index.php index.html index.htm;
+    client_max_body_size 128M;
+    #access_log syslog:server=127.0.0.1,nohostname syslog;
+    error_log /var/log/nginx/<%= @host %>.error.log warn;
+    location = /favicon.ico {
+        log_not_found off;
+        access_log off;
+    }
+    location = /robots.txt {
+        allow all;
+        log_not_found off;
+        access_log off;
+    }
+
+    location ~ /\. {
+        deny all;
+        access_log off;
+        log_not_found off;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.php?$args;
+    }
+
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico)$ {
+        expires 24h;
+        log_not_found off;
+        tcp_nodelay off;
+        open_file_cache max=100 inactive=120s;
+        open_file_cache_valid 45s;
+        open_file_cache_min_uses 2;
+        open_file_cache_errors off;
+    }
+
+    location ~ \.php$ {
+        try_files $uri =404;
+        fastcgi_split_path_info ^(.+\.php)(/.+)$;
+        fastcgi_param SID "<%= @phpid %>";
+        include fastcgi_params;
+        fastcgi_param  PATH_INFO        $fastcgi_path_info;
+        fastcgi_index index.php;
+        fastcgi_param  SCRIPT_FILENAME  $document_root$fastcgi_script_name;
+        fastcgi_pass phpfpm;
+    }
+}

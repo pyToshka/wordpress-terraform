@@ -1,0 +1,52 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<flow-definition plugin="workflow-job@2.12.2">
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>aws_rds_master_username</name>
+          <description></description>
+          <defaultValue>wp</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>aws_rds_master_password</name>
+          <description></description>
+          <defaultValue>password</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>aws_rds_host</name>
+          <description></description>
+          <defaultValue>terraform-0071150e850fedd823c3075068.clddmlumhp0x.us-east-1.rds.amazonaws.com</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>aws_rds_dbname</name>
+          <description></description>
+          <defaultValue>wordpress</defaultValue>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+    <org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
+      <triggers/>
+    </org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
+  </properties>
+  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@2.40">
+    <script>node {
+    try {
+      println &quot;${env.JOB_NAME} - #${env.BUILD_NUMBER} Started&quot;
+      stage(&apos;Database restore&apos;) {
+          sh &quot;mysql -u${aws_rds_master_username}  -p${aws_rds_master_password} -h ${aws_rds_host} ${aws_rds_dbname} &lt; /var/lib/jenkins/jobs/infra/db/wp.sql&quot;
+        }
+    } catch (e) {
+       println &quot;${env.JOB_NAME} - #${env.BUILD_NUMBER} Failure&quot;
+        throw e
+    }
+}
+</script>
+    <sandbox>true</sandbox>
+  </definition>
+  <triggers/>
+  <disabled>false</disabled>
+</flow-definition>
