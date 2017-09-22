@@ -19,7 +19,7 @@
         <hudson.model.StringParameterDefinition>
           <name>aws_rds_host</name>
           <description></description>
-          <defaultValue>terraform-0071150e850fedd823c3075068.clddmlumhp0x.us-east-1.rds.amazonaws.com</defaultValue>
+          <defaultValue>terraform-00af1f1b76f7106b08a00dd831.clddmlumhp0x.us-east-1.rds.amazonaws.com</defaultValue>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>aws_rds_dbname</name>

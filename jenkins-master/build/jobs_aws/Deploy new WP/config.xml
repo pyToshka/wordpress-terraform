@@ -1,20 +1,25 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<flow-definition plugin="workflow-job@2.12.2">
+<flow-definition plugin="workflow-job@2.14.1">
   <actions/>
   <description></description>
   <keepDependencies>false</keepDependencies>
   <properties>
+    <org.jenkinsci.plugins.workflow.job.properties.DisableConcurrentBuildsJobProperty/>
+    <com.coravy.hudson.plugins.github.GithubProjectProperty plugin="github@1.28.0">
+      <projectUrl>https://github.com/pyToshka/wordpress/</projectUrl>
+      <displayName></displayName>
+    </com.coravy.hudson.plugins.github.GithubProjectProperty>
     <hudson.model.ParametersDefinitionProperty>
       <parameterDefinitions>
         <hudson.model.StringParameterDefinition>
           <name>aws_access_key</name>
           <description>AWS access key</description>
-          <defaultValue>none</defaultValue>
+          <defaultValue>SET_ACCESS_KEY_FOR_AUTOBUILD</defaultValue>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>aws_secret_key</name>
           <description>AWS secret key</description>
-          <defaultValue>none</defaultValue>
+          <defaultValue>SET_SECRET_KEY_FOR_AUTOBUILD</defaultValue>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>aws_region</name>
@@ -39,7 +44,7 @@
         <hudson.model.StringParameterDefinition>
           <name>aws_rds_host</name>
           <description>RDS DNS A record for connection</description>
-          <defaultValue>terraform-0071150e850fedd823c3075068.clddmlumhp0x.us-east-1.rds.amazonaws.com</defaultValue>
+          <defaultValue>terraform-00af1f1b76f7106b08a00dd831.clddmlumhp0x.us-east-1.rds.amazonaws.com</defaultValue>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>aws_rds_dbname</name>
@@ -49,17 +54,17 @@
         <hudson.model.StringParameterDefinition>
           <name>key_name</name>
           <description>SSH key name</description>
-          <defaultValue>none</defaultValue>
+          <defaultValue>iuriimedvedev</defaultValue>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>aws_security_groups</name>
           <description>List of security group  ex.[&quot;sg-8a1095f9&quot;,&quot;sg-d21f9aa1&quot;]</description>
-          <defaultValue>[&quot;none&quot;,&quot;none&quot;]</defaultValue>
+          <defaultValue>[&quot;sg-23f07850&quot;,&quot;sg-71fe7602&quot;]</defaultValue>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>aws_vpc_zone_identifier</name>
           <description>List of vpc zone ex.[&quot;subnet-035c6c2f&quot;,&quot;subnet-c13dcc8a&quot;]</description>
-          <defaultValue>[&quot;none&quot;,&quot;none&quot;]</defaultValue>
+          <defaultValue>[&quot;subnet-180f3d34&quot;,&quot;subnet-384ebd73&quot;]</defaultValue>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>aws_s3_bucket</name>
@@ -70,8 +75,21 @@
     </hudson.model.ParametersDefinitionProperty>
     <org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
       <triggers>
+        <jenkins.triggers.ReverseBuildTrigger>
+          <spec></spec>
+          <upstreamProjects>Create db for WP, </upstreamProjects>
+          <threshold>
+            <name>SUCCESS</name>
+            <ordinal>0</ordinal>
+            <color>BLUE</color>
+            <completeBuild>true</completeBuild>
+          </threshold>
+        </jenkins.triggers.ReverseBuildTrigger>
+        <com.cloudbees.jenkins.GitHubPushTrigger plugin="github@1.28.0">
+          <spec></spec>
+        </com.cloudbees.jenkins.GitHubPushTrigger>
         <hudson.triggers.SCMTrigger>
-          <spec>H/10 * * * *</spec>
+          <spec>*/2 * * * *</spec>
           <ignorePostCommitHooks>false</ignorePostCommitHooks>
         </hudson.triggers.SCMTrigger>
       </triggers>
@@ -80,12 +98,19 @@
   <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@2.40">
     <script>node {
     try {
-        
+      deleteDir()
       println &quot;${env.JOB_NAME} - #${env.BUILD_NUMBER} Started&quot;
       time=&quot;${currentBuild.startTimeInMillis}&quot;
       echo &quot;TimeStamp: ${time}&quot;
-      deleteDir() //Make sure workspace is clean
+      
       sh &quot;mkdir -p /var/lib/jenkins/jobs/infra/wordpress/state/&quot;
+      sh &quot;mkdir -p /var/lib/jenkins/jobs/infra/wordpress/source&quot;
+       dir(&quot;/var/lib/jenkins/jobs/infra/wordpress/source&quot;) {
+           stage(&apos;Checkout&apos;) {
+             git changelog: true, poll: true, url: &apos;https://github.com/pyToshka/wordpress&apos; 
+           }
+           
+       }
         dir(&quot;/var/lib/jenkins/jobs/infra&quot;) {
         stage(&apos;Change puppet for deploy&apos;) {
             def puppet = &quot;&quot;&quot;class wordpress::conf { 

@@ -59,7 +59,8 @@ class nginx (
 
     package {
         'nginx':
-            ensure => $version;
+            ensure => $version,
+	    require  => Exec['apt-get update'];
     }
 
     file {
