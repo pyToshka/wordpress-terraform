@@ -43,3 +43,9 @@ output"subnet_name"{
 output "aws_ami" {
   value = "${aws_instance.jenkins-master.ami}"
 }
+output "jenkins_master_public_ip" {
+  value = "${aws_instance.jenkins-master.public_ip}"
+}
+output "jenkins_master_public_dns" {
+  value = "${aws_instance.jenkins-master.public_dns}"
+}
