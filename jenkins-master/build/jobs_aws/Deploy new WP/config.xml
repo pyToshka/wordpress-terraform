@@ -105,6 +105,8 @@
       
       sh &quot;mkdir -p /var/lib/jenkins/jobs/infra/wordpress/state/&quot;
       sh &quot;mkdir -p /var/lib/jenkins/jobs/infra/wordpress/source&quot;
+      sh "mkdir -p /var/lib/jenkins/jobs/infra/containers"
+
        dir(&quot;/var/lib/jenkins/jobs/infra/wordpress/source&quot;) {
            stage(&apos;Checkout&apos;) {
              git changelog: true, poll: true, url: &apos;https://github.com/pyToshka/wordpress&apos; 
