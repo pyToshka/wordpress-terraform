@@ -3,6 +3,7 @@ include ::apt
 class {'jenkins':
     install_java => false,
 }
+class {'packer':}
 class  {'terraform':}
 jenkins::plugin {"ansicolor":}
 jenkins::plugin {"mailer":}
