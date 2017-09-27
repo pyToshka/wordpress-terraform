@@ -19,10 +19,14 @@
         "type": "shell",
           "inline": ["apt-get -y update; apt-get install -y cron git  curl sudo wget python && wget https://apt.puppetlabs.com/puppetlabs-release-pc1-xenial.deb -O /tmp/puppetlabs.deb && sudo dpkg -i /tmp/puppetlabs.deb && sudo apt-get update && sudo apt-get install  puppet-agent && sudo apt-get install -y php7.0-mysql python-pip"]
       },
+      { "type" : "shell",
+        "inline" : [ "mkdir -p /tmp/packer-puppet-masterless/manifests", "chmod -R 777 /tmp/packer-puppet-masterless" ]
+      },
       {
         "type": "puppet-masterless",
           "manifest_file": "puppet/environments/packer/manifests/wordpress.pp",
           "manifest_dir": "puppet/environments",
+          "prevent_sudo": true,
           "module_paths": ["puppet/modules"],
           "execute_command": "{{.FacterVars}} sudo /opt/puppetlabs/bin/puppet apply --detailed-exitcodes --modulepath='{{.ModulePath}}' {{.ManifestFile}}"
       }
