@@ -68,7 +68,7 @@
       },
       {
         "type": "shell",
-        "inline": ["sudo chown -R jenkins:jenkins  /var/lib/jenkins/"]
+        "inline": ["sudo chown -f -R jenkins:jenkins  /var/lib/jenkins/ 2>1 || true"]
       },
       {
         "type": "shell",
