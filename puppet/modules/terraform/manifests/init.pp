@@ -11,7 +11,7 @@ class terraform (
 
   exec {'unzip_terraform':
     path => '/usr/bin',
-    command => 'sudo unzip /tmp/terraform.zip -d /usr/local/bin',
+    command => 'sudo unzip -o /tmp/terraform.zip -d /usr/local/bin',
     require => Exec['get_terraform'],
   }
   exec{'get_packer':
@@ -20,7 +20,7 @@ class terraform (
 
   exec {'unzip_packer':
     path => '/usr/bin',
-    command => 'sudo unzip /tmp/packer.zip -d /usr/local/bin',
+    command => 'sudo unzip -o /tmp/packer.zip -d /usr/local/bin',
     require => Exec['get_packer'],
   }
 }
